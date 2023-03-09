@@ -1006,6 +1006,8 @@ func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
 		pathBytes = path.Bytes()
 	}
 
+	fmt.Printf("RESOLVE ERROR: path: %s\n", string(ctx.path()))
+
 	objectBuf.WriteErr(unableToResolveMsg, locations.Bytes(), pathBytes, nil)
 }
 
