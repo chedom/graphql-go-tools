@@ -144,6 +144,7 @@ type ExecutionEngineV2 struct {
 	internalExecutionContextPool sync.Pool
 	executionPlanCache           *lru.Cache
 	operationMiddleware          OperationMiddleware
+	validationResultCache        *lru.Cache
 	//rootFieldMiddleware          resolve.RootFieldMiddleware
 }
 
@@ -173,6 +174,12 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	if err != nil {
 		return nil, err
 	}
+
+	validationResultCache, err := lru.New(512)
+	if err != nil {
+		return nil, err
+	}
+
 	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 	rootFieldMiddleware := processRootFieldMiddleware(engineConfig.rootFieldMiddleware...)
 	resolver := resolve.New(ctx, fetcher, engineConfig.dataLoaderConfig.EnableDataLoader)
@@ -188,8 +195,9 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 				return newInternalExecutionContext()
 			},
 		},
-		executionPlanCache:  executionPlanCache,
-		operationMiddleware: processOperationMiddleware(),
+		executionPlanCache:    executionPlanCache,
+		operationMiddleware:   processOperationMiddleware(),
+		validationResultCache: validationResultCache,
 	}, nil
 }
 
@@ -205,7 +213,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 		}
 	}
 
-	result, err := operation.ValidateForSchema(e.config.schema)
+	result, err := e.getCachedValidation(operation)
 	if err != nil {
 		return err
 	}
@@ -246,6 +254,34 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 
 func (e *ExecutionEngineV2) UseOperation(mw OperationMiddleware) {
 	e.operationMiddleware = processOperationMiddleware(e.operationMiddleware, mw)
+}
+
+func (e *ExecutionEngineV2) getCachedValidation(req *Request) (result ValidationResult, err error) {
+	hash := pool.Hash64.Get()
+	hash.Reset()
+	defer pool.Hash64.Put(hash)
+
+	err = astprinter.Print(&req.document, &e.config.schema.document, hash)
+	if err != nil {
+		return result, err
+	}
+
+	cacheKey := hash.Sum64()
+
+	if cached, ok := e.validationResultCache.Get(cacheKey); ok {
+		if c, ok := cached.(ValidationResult); ok {
+			return c, nil
+		}
+	}
+
+	result, err = req.ValidateForSchema(e.config.schema)
+	if err != nil {
+		return result, err
+	}
+
+	e.validationResultCache.Add(cacheKey, result)
+
+	return result, nil
 }
 
 func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
