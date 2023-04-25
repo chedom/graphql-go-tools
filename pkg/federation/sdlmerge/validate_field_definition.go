@@ -92,7 +92,7 @@ func (v *validateFieldVisitor) EnterObjectTypeDefinition(ref int) {
 }
 
 func (v *validateFieldVisitor) EnterObjectTypeExtension(ref int) {
-	name := v.document.ObjectTypeDefinitionNameString(ref)
+	name := v.document.ObjectTypeExtensionDescriptionNameString(ref)
 	objectType := v.document.ObjectTypeExtensions[ref]
 	refs := objectType.FieldsDefinition.Refs
 	object, exists := v.sharedTypeSet[name]
