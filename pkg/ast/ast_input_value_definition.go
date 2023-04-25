@@ -83,6 +83,32 @@ func (d *Document) AddInputValueDefinition(inputValueDefinition InputValueDefini
 	return len(d.InputValueDefinitions) - 1
 }
 
+func (d *Document) InputValuesAreEqual(left, right int) bool {
+	return bytes.Equal(d.InputValueDefinitionNameBytes(left), d.InputValueDefinitionNameBytes(right)) &&
+		d.TypesAreEqualDeep(d.InputValueDefinitionType(left), d.InputValueDefinitionType(right))
+}
+
+func (d *Document) InputValueSetsAreEqual(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	leftMap := make(map[string]int, len(left))
+	for _, i := range left {
+		leftMap[d.InputValueDefinitionNameString(i)] = i
+	}
+
+	for _, inputValueRight := range right {
+		inputValueLeft, exists := leftMap[d.InputValueDefinitionNameString(inputValueRight)]
+		if !exists {
+			return false
+		}
+		if !d.InputValuesAreEqual(inputValueLeft, inputValueRight) {
+			return false
+		}
+	}
+	return true
+}
+
 func (d *Document) ImportInputValueDefinition(name, description string, typeRef int, defaultValue DefaultValue) (ref int) {
 	inputValueDef := InputValueDefinition{
 		Description:  d.ImportDescription(description),

@@ -34,18 +34,42 @@ func newFieldedSharedType(document *ast.Document, fieldKind ast.NodeKind, fieldR
 	return f
 }
 
-func (f fieldedSharedType) areFieldsIdentical(fieldRefsToCompare []int) bool {
+func (f *fieldedSharedType) areFieldsIdentical(fieldRefsToCompare []int) bool {
 	if len(f.fieldRefs) != len(fieldRefsToCompare) {
 		return false
 	}
 	for _, fieldRef := range fieldRefsToCompare {
 		actualFieldName := f.fieldName(fieldRef)
-		expectedTypeRef, exists := f.fieldSet[actualFieldName]
+		expectedRef, exists := f.fieldSet[actualFieldName]
 		if !exists {
 			return false
 		}
 		actualTypeRef := f.fieldTypeRef(fieldRef)
+		expectedTypeRef := f.fieldTypeRef(expectedRef)
 		if !f.document.TypesAreCompatibleDeep(expectedTypeRef, actualTypeRef) {
+			return false
+		}
+	}
+	return true
+}
+
+func (f *fieldedSharedType) compareFields(fieldRefsToCompare []int) bool {
+	for _, fieldRef := range fieldRefsToCompare {
+		actualFieldName := f.fieldName(fieldRef)
+		expectedRef, exists := f.fieldSet[actualFieldName]
+		if !exists {
+			continue
+		}
+
+		actualTypeRef := f.fieldTypeRef(fieldRef)
+		expectedTypeRef := f.fieldTypeRef(expectedRef)
+		if !f.document.TypesAreCompatibleDeep(expectedTypeRef, actualTypeRef) {
+			return false
+		}
+
+		actualInputValues := f.fieldInputValuesRefs(fieldRef)
+		expectedInputValues := f.fieldInputValuesRefs(expectedRef)
+		if !f.document.InputValueSetsAreEqual(expectedInputValues, actualInputValues) {
 			return false
 		}
 	}
@@ -55,12 +79,12 @@ func (f fieldedSharedType) areFieldsIdentical(fieldRefsToCompare []int) bool {
 func (f *fieldedSharedType) createFieldSet() {
 	fieldSet := make(map[string]int)
 	for _, fieldRef := range f.fieldRefs {
-		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeRef(fieldRef)
+		fieldSet[f.fieldName(fieldRef)] = fieldRef
 	}
 	f.fieldSet = fieldSet
 }
 
-func (f fieldedSharedType) fieldName(ref int) string {
+func (f *fieldedSharedType) fieldName(ref int) string {
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
 		return f.document.InputValueDefinitionNameString(ref)
@@ -69,12 +93,21 @@ func (f fieldedSharedType) fieldName(ref int) string {
 	}
 }
 
-func (f fieldedSharedType) fieldTypeRef(ref int) int {
+func (f *fieldedSharedType) fieldTypeRef(ref int) int {
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
 		return f.document.InputValueDefinitions[ref].Type
 	default:
 		return f.document.FieldDefinitions[ref].Type
+	}
+}
+
+func (f *fieldedSharedType) fieldInputValuesRefs(ref int) []int {
+	switch f.fieldKind {
+	case ast.NodeKindInputValueDefinition:
+		return []int{}
+	default:
+		return f.document.FieldDefinitions[ref].ArgumentsDefinition.Refs
 	}
 }
 
