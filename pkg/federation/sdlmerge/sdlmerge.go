@@ -131,6 +131,9 @@ func (m *normalizer) setupWalkers() {
 			newRemoveEmptyObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 		},
+		{
+			newValidateFieldVisitor(),
+		},
 		// visitors for cleaning up federated duplicated fields and directives
 		{
 			newRemoveFieldDefinitions("external"),
