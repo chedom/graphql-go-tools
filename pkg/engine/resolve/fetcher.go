@@ -1,10 +1,15 @@
 package resolve
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"hash"
+	"io"
+	"mime/multipart"
 	"sync"
 
+	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
@@ -48,9 +53,79 @@ func NewFetcher(enableSingleFlightLoader bool) *Fetcher {
 	}
 }
 
+func prepareMultiPartInputData(ctx *Context, input *fastbuffer.FastBuffer) (*fastbuffer.FastBuffer, error) {
+	data := input.Bytes()
+
+	body, _, _, err := jsonparser.Get(data, "body")
+	if err != nil {
+		return nil, err
+	}
+
+	body = jsonparser.Delete(body, "operationName")
+
+	newBody := &bytes.Buffer{}
+	writer := multipart.NewWriter(newBody)
+
+	part, err := writer.CreateFormField("operations")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = part.Write(body); err != nil {
+		return nil, err
+	}
+
+	if part, err = writer.CreateFormField("map"); err != nil {
+		return nil, err
+	}
+
+	if _, err = part.Write(ctx.Map); err != nil {
+		return nil, err
+	}
+
+	for key, file := range ctx.Files {
+		if part, err = writer.CreateFormFile(key, file.Filename); err != nil {
+			return nil, err
+		}
+		if _, err = io.Copy(part, file.File); err != nil {
+			return nil, err
+		}
+		_ = file.File.Close()
+	}
+
+	ctx.Map = nil
+	ctx.Files = nil
+
+	if err = writer.Close(); err != nil {
+		return nil, err
+	}
+
+	data, err = jsonparser.Set(data, []byte(`["`+writer.FormDataContentType()+`"]`), "header", "Content-Type")
+	if err != nil {
+		return nil, err
+	}
+
+	data, err = jsonparser.Set(data, []byte(`"`+base64.StdEncoding.EncodeToString(newBody.Bytes())+`"`), "body")
+	if err != nil {
+		return nil, err
+	}
+
+	newInput := fastbuffer.New()
+	newInput.WriteBytes(data)
+
+	return newInput, nil
+}
+
 func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) (err error) {
 	dataBuf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(dataBuf)
+
+	if ctx.Map != nil && ctx.Files != nil {
+		preparedInput, err = prepareMultiPartInputData(ctx, preparedInput)
+		if err != nil {
+			return
+		}
+	}
 
 	if ctx.beforeFetchHook != nil {
 		ctx.beforeFetchHook.OnBeforeFetch(f.hookCtx(ctx), preparedInput.Bytes())

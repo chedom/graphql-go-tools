@@ -5,8 +5,10 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"strconv"
@@ -120,11 +122,19 @@ type AfterFetchHook interface {
 	OnError(ctx HookContext, output []byte, singleFlight bool)
 }
 
+type FileUpload struct {
+	File     multipart.File
+	Filename string
+	Size     int64
+}
+
 type Context struct {
 	context.Context
 	OperationName     string
 	OperationDocument *ast.Document // Operation document is readonly, it's not expected to modify the field
 	Variables         []byte
+	Map               json.RawMessage
+	Files             map[string]FileUpload
 	Request           Request
 	pathElements      [][]byte
 	responseElements  []string
@@ -185,6 +195,8 @@ func (c *Context) Clone() Context {
 	return Context{
 		Context:           c.Context,
 		Variables:         variables,
+		Map:               c.Map,
+		Files:             c.Files,
 		Request:           c.Request,
 		pathElements:      pathElements,
 		patches:           patches,

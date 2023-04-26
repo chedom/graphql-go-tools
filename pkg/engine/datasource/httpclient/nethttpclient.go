@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"time"
@@ -37,6 +38,11 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 
+	newBody, err := base64.StdEncoding.DecodeString(string(body))
+	if err == nil {
+		body = newBody
+	}
+
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -55,6 +61,11 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		if err != nil {
 			return err
 		}
+	}
+
+	request.Header.Add("accept", "application/json")
+	if len(request.Header.Get("content-type")) == 0 {
+		request.Header.Add("content-type", "application/json")
 	}
 
 	if queryParams != nil {
@@ -86,9 +97,6 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		}
 		request.URL.RawQuery = query.Encode()
 	}
-
-	request.Header.Add("accept", "application/json")
-	request.Header.Add("content-type", "application/json")
 
 	response, err := client.Do(request)
 	if err != nil {

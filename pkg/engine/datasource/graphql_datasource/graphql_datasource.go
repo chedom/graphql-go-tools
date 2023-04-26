@@ -991,7 +991,7 @@ type Source struct {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	input = deleteNullVariables(input, "body", "variables")
+	//input = deleteNullVariables(input, "body", "variables")
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 

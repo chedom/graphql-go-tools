@@ -125,6 +125,8 @@ func (e *internalExecutionContext) setOperationRequest(operationRequest *Request
 	e.resolveContext.OperationDocument, _ = operationRequest.OperationDocument()
 	e.resolveContext.OperationName = operationRequest.OperationName
 	e.resolveContext.Request = operationRequest.request
+	e.resolveContext.Map = operationRequest.Map
+	e.resolveContext.Files = operationRequest.Files
 }
 
 func (e *internalExecutionContext) setContext(ctx context.Context) {

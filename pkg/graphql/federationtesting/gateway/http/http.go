@@ -19,7 +19,7 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 	var err error
 
 	var gqlRequest graphql.Request
-	if err = graphql.UnmarshalHttpRequest(r, &gqlRequest); err != nil {
+	if err = graphql.UnmarshalHttpRequest(r, &gqlRequest, g.maxMemory); err != nil {
 		g.log.Error("UnmarshalHttpRequest", log.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return

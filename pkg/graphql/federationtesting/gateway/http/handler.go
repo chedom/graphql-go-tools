@@ -18,12 +18,14 @@ func NewGraphqlHTTPHandler(
 	engine *graphql.ExecutionEngineV2,
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
+	maxMemory int64,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		schema:     schema,
 		engine:     engine,
 		wsUpgrader: upgrader,
 		log:        logger,
+		maxMemory:  maxMemory,
 	}
 }
 
@@ -32,6 +34,7 @@ type GraphQLHTTPRequestHandler struct {
 	wsUpgrader *ws.HTTPUpgrader
 	engine     *graphql.ExecutionEngineV2
 	schema     *graphql.Schema
+	maxMemory  int64
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

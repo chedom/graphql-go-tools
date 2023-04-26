@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	lru "github.com/hashicorp/golang-lru"
 
@@ -41,6 +42,9 @@ type Request struct {
 	Variables     json.RawMessage `json:"variables"`
 	Query         string          `json:"query"`
 
+	Map   json.RawMessage
+	Files map[string]resolve.FileUpload
+
 	document     ast.Document
 	isParsed     bool
 	isNormalized bool
@@ -64,9 +68,64 @@ func UnmarshalRequest(reader io.Reader, request *Request) error {
 	return json.Unmarshal(requestBytes, &request)
 }
 
-func UnmarshalHttpRequest(r *http.Request, request *Request) error {
+func UnmarshalMultiPartRequest(r *http.Request, request *Request, maxMemory int64) error {
+	err := r.ParseMultipartForm(maxMemory)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal([]byte(r.Form.Get("operations")), &request)
+	if err != nil {
+		return err
+	}
+
+	uploadMaps := map[string][]string{}
+
+	request.Map = []byte(r.Form.Get("map"))
+
+	err = json.Unmarshal(request.Map, &uploadMaps)
+	if err != nil {
+		return err
+	}
+
+	if request.Files == nil {
+		request.Files = map[string]resolve.FileUpload{}
+	}
+
+	for key, _ := range uploadMaps {
+		if file, header, err := r.FormFile(key); err != nil {
+			return err
+		} else {
+			request.Files[key] = resolve.FileUpload{
+				File:     file,
+				Size:     header.Size,
+				Filename: header.Filename,
+			}
+		}
+	}
+
+	return nil
+}
+
+func UnmarshalHttpRequest(r *http.Request, request *Request, maxMemory int64) error {
 	request.request.Header = r.Header
-	return UnmarshalRequest(r.Body, request)
+
+	var result error = nil
+
+	if r.Method == "POST" {
+		contentType := strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]
+
+		switch contentType {
+		case "text/plain", "application/json":
+			result = UnmarshalRequest(r.Body, request)
+		case "multipart/form-data":
+			result = UnmarshalMultiPartRequest(r, request, maxMemory)
+		}
+	} else {
+		result = UnmarshalRequest(r.Body, request)
+	}
+
+	return result
 }
 
 func (r *Request) SetHeader(header http.Header) {
@@ -90,7 +149,7 @@ func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator,
 	return complexityCalculator.Calculate(&r.document, &schema.document)
 }
 
-func (r Request) Print(writer io.Writer) (n int, err error) {
+func (r *Request) Print(writer io.Writer) (n int, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return 0, report
