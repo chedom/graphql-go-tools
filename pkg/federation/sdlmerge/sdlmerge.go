@@ -69,6 +69,8 @@ func (m *normalizer) setupWalkers() {
 		// visitors for clean up federated duplicated fields and directives
 		{
 			newRemoveFieldDefinitions("external"),
+			newRemoveDuplicateFieldedSharedTypesVisitor(),
+			newRemoveDuplicateFieldlessSharedTypesVisitor(),
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),

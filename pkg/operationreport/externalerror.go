@@ -218,3 +218,8 @@ func ErrEnumValueNameMustBeUnique(enumName, enumValueName ast.ByteSlice) (err Ex
 	err.Message = fmt.Sprintf("enum value '%s.%s' can only be defined once", enumName, enumValueName)
 	return err
 }
+
+func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the shared type named '%s' must be identical in any subgraphs to federate", typeName)
+	return err
+}
