@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"fmt"
 	"hash"
 	"sync"
 
@@ -148,7 +147,7 @@ func (f *Fetcher) FetchBatch(ctx *Context, fetch *BatchFetch, preparedInputs []*
 	}
 
 	if batch == nil {
-		return fmt.Errorf("empty fetch params")
+		return
 	}
 
 	buf := f.getBufPair()

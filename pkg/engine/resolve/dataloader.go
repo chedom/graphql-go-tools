@@ -414,6 +414,11 @@ func (d *dataLoader) filterDataForFetch(input [][]byte, onType []byte) [][]byte 
 	var idx int
 
 	for _, item := range input {
+		_, vType, _, _ := jsonparser.Get(item)
+		if vType == jsonparser.Null {
+			continue
+		}
+
 		itemType, _, _, _ := jsonparser.Get(item, "__typename")
 		if len(itemType) != 0 && !bytes.Equal(onType, itemType) {
 			continue
