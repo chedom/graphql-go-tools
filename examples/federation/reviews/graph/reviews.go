@@ -11,7 +11,7 @@ var reviews = []*model.Review{
 	{
 		Body:    "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.",
 		Product: &model.Product{Upc: "top-2"},
-		Author:  &model.User{ID: "1234"},
+		Author:  nil,
 	},
 	{
 		Body:    "This is the last straw. Hat you will wear. 11/10",

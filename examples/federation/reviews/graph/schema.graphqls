@@ -8,7 +8,7 @@ enum Role {
 
 type Review {
     body: String!
-    author: User! @hasRole(role: ADMIN)
+    author: User
     product: Product!
 }
 
