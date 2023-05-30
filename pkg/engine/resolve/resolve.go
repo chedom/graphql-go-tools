@@ -1014,6 +1014,19 @@ func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
+
+		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
+			objectBuf.Reset()
+
+			if object.Nullable {
+				r.resolveNull(objectBuf.Data)
+				return
+			}
+
+			r.addResolveError(ctx, objectBuf)
+			return errNonNullableFieldValueIsNull
+		}
+
 		ctx.addResponseElements(object.Path)
 		defer ctx.removeResponseLastElements(object.Path)
 	}
@@ -1031,20 +1044,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		}
 		for i := range set.buffers {
 			r.MergeBufPairErrors(set.buffers[i], objectBuf)
-		}
-	}
-
-	if len(object.Path) != 0 {
-		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
-			objectBuf.Reset()
-
-			if object.Nullable {
-				r.resolveNull(objectBuf.Data)
-				return
-			}
-
-			r.addResolveError(ctx, objectBuf)
-			return errNonNullableFieldValueIsNull
 		}
 	}
 
