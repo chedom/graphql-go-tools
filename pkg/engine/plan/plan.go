@@ -156,6 +156,7 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
 	configurationWalker.RegisterFieldVisitor(configVisitor)
 	configurationWalker.RegisterEnterOperationVisitor(configVisitor)
+	configurationWalker.RegisterSelectionSetVisitor(configVisitor)
 
 	// planning
 
@@ -1000,7 +1001,17 @@ type configurationVisitor struct {
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
+	parentTypeNodes []ast.Node
+
 	ctx context.Context
+}
+
+func (c *configurationVisitor) EnterSelectionSet(_ int) {
+	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
+}
+
+func (c *configurationVisitor) LeaveSelectionSet(_ int) {
+	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
 type plannerConfiguration struct {
@@ -1131,6 +1142,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 	root := c.walker.Ancestors[0]
 	parentPath := parent
 
+	parentPathParentType := c.getParentPathParentType()
+
 	if onTypeName := c.resolveOnTypeName(); len(onTypeName) != 0 {
 		parentPath += "." + string(onTypeName)
 	}
@@ -1146,7 +1159,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 			c.fieldBuffers[ref] = planner.bufferID
 			return
 		}
-		if planner.hasPath(parent) && planner.hasChildNode(typeName, fieldName) {
+		if planner.hasPathType(parent, parentPathParentType) && planner.hasChildNode(typeName, fieldName) {
 			// has parent path + has child node = child
 			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, typeName: typeName})
 			return
@@ -1186,6 +1199,30 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
+func (c *configurationVisitor) getParentPathParentType() string {
+	if len(c.parentTypeNodes) < 2 {
+		return ""
+	}
+
+	var firstParentSkipped bool
+
+	for i := len(c.parentTypeNodes) - 1; i >= 0; i-- {
+		node := c.parentTypeNodes[i]
+		if node.Kind.IsAbstractType() {
+			continue
+		}
+
+		if !firstParentSkipped {
+			firstParentSkipped = true
+			continue
+		}
+
+		return c.parentTypeNodes[i].NameString(c.definition)
+	}
+
+	return ""
+}
+
 func (c *configurationVisitor) LeaveField(ref int) {
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()
@@ -1201,6 +1238,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.operation, c.definition = operation, definition
 	c.currentBufferId = -1
+	c.parentTypeNodes = c.parentTypeNodes[:0]
 	if c.planners == nil {
 		c.planners = make([]plannerConfiguration, 0, 8)
 	} else {
