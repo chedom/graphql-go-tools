@@ -1205,14 +1205,24 @@ func (c *configurationVisitor) getParentPathParentType() string {
 	}
 
 	var firstParentSkipped bool
+	var firstConcreteParent ast.Node
 
 	for i := len(c.parentTypeNodes) - 1; i >= 0; i-- {
 		node := c.parentTypeNodes[i]
-		if node.Kind.IsAbstractType() {
+		name := c.parentTypeNodes[i].NameString(c.definition)
+		_ = name
+		if node.Kind == ast.NodeKindUnionTypeDefinition {
 			continue
 		}
 
+		if node.Kind == ast.NodeKindInterfaceTypeDefinition && firstParentSkipped {
+			if c.definition.NodeImplementsInterface(firstConcreteParent, node) {
+				continue
+			}
+		}
+
 		if !firstParentSkipped {
+			firstConcreteParent = c.parentTypeNodes[i]
 			firstParentSkipped = true
 			continue
 		}
